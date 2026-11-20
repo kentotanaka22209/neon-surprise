@@ -1,0 +1,53 @@
+name: Build NeonSurprise iOS
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check default stable Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
+
+      - name: Build NeonSurprise (unsigned iOS)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project NeonSurprise.xcodeproj \
+            -scheme NeonSurprise \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee build.log
+
+      - name: Package unsigned IPA
+        run: |
+          rm -rf Payload NeonSurprise-unsigned.ipa
+          mkdir -p Payload
+          cp -r build/Build/Products/Debug-iphoneos/NeonSurprise.app Payload/
+          zip -r NeonSurprise-unsigned.ipa Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeonSurprise-unsigned-ipa
+          path: NeonSurprise-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: build.log
+          if-no-files-found: warn
